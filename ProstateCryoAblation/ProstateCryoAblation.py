@@ -6,12 +6,15 @@ import vtk
 
 from ProstateCryoAblationUtil.appConfig import ConfigurationParser
 from ProstateCryoAblationUtil.constants import ProstateCryoAblationConstants
+from ProstateCryoAblationUtil.steps.evaluation import CryoAblationEvaluationStep
 from SliceTracker import SliceTrackerTabWidget
 from SliceTrackerUtils.session import SliceTrackerSession
 from SliceTrackerUtils.steps.base import SliceTrackerStep
 from SliceTrackerUtils.steps.overview import SliceTrackerOverviewStep
 from SliceTrackerUtils.steps.zFrameRegistration import SliceTrackerZFrameRegistrationStep
-from ProstateCryoAblationUtil.steps.intraOperativeTargeting import ProstateCryoAblationTargetingStep
+
+from SliceTrackerUtils.steps.segmentation import SliceTrackerSegmentationStep
+#from ProstateCryoAblationUtil.steps.intraOperativeTargeting import ProstateCryoAblationTargetingStep
 
 from SlicerDevelopmentToolboxUtils.buttons import *
 from SlicerDevelopmentToolboxUtils.constants import DICOMTAGS
@@ -74,7 +77,7 @@ class ProstateCryoAblationWidget(ModuleWidgetMixin, ScriptedLoadableModuleWidget
     ScriptedLoadableModuleWidget.setup(self)
 
     for step in [SliceTrackerOverviewStep, SliceTrackerZFrameRegistrationStep,
-                 ProstateCryoAblationTargetingStep]:
+                 SliceTrackerSegmentationStep, CryoAblationEvaluationStep]:
       self.session.registerStep(step())
 
     self.customStatusProgressBar = CustomStatusProgressbar()
@@ -173,6 +176,19 @@ class ProstateCryoAblationWidget(ModuleWidgetMixin, ScriptedLoadableModuleWidget
     if not self.session.data.usePreopData and self.patientWatchBox.sourceFile is None:
       self.patientWatchBox.sourceFile = receivedFile
     self.intraopWatchBox.sourceFile = receivedFile
+    """
+    backgroundVolumeID = self.session.getOrCreateVolumeForSeries(callData).GetID() if self.session.getOrCreateVolumeForSeries(
+      callData) else None
+    registrationResult = self.session.data.getApprovedOrLastResultForSeries(callData) if self.session.data.getResult(callData) else None
+    if registrationResult:
+      approvedVolume = registrationResult.volumes.asDict().get(registrationResult.registrationType)
+      backgroundVolumeID = approvedVolume.GetID() if approvedVolume else None
+    for widget in [w for w in self.getAllVisibleWidgets() if w.sliceView().visible]:
+      compositeNode = widget.mrmlSliceCompositeNode()
+      compositeNode.SetLabelVolumeID(None)
+      compositeNode.SetForegroundVolumeID(None)
+      compositeNode.SetBackgroundVolumeID(backgroundVolumeID)
+    """
 
   @vtk.calldata_type(vtk.VTK_STRING)
   def onAvailableLayoutsChanged(self, caller, event, callData):

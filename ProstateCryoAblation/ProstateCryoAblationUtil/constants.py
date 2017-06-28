@@ -6,4 +6,5 @@ class ProstateCryoAblationConstants(SliceTrackerConstants):
 
   def __init__(self, parent=None):
     super(ProstateCryoAblationConstants, self).__init__(parent)
+    self.INHERITED_MODULE_NAME = parent.MODULE_NAME
     MODULE_NAME = "ProstateCryoAblation"
