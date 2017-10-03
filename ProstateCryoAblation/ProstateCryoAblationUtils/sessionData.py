@@ -136,6 +136,35 @@ class SessionData(ModuleLogicMixin):
       self.loadResults(data, directory)
     return True
 
+  def getMostRecentApprovedCoverProstateRegistration(self):
+    seriesTypeManager = SeriesTypeManager()
+    for result in self.registrationResults.values():
+      if seriesTypeManager.isCoverProstate(result.name) and result.approved:
+        return result
+    return None
+
+  def getResultsBySeriesNumber(self, seriesNumber):
+    return [result for result in self.getResultsAsList() if seriesNumber == result.seriesNumber]
+
+  def _registrationResultHasStatus(self, series, status, method=all):
+    if not type(series) is int:
+      series = RegistrationResult.getSeriesNumberFromString(series)
+    results = self.getResultsBySeriesNumber(series)
+    return method(result.status == status for result in results) if len(results) else False
+
+  def registrationResultWasApproved(self, series):
+    return self._registrationResultHasStatus(series, RegistrationStatus.APPROVED_STATUS, method=any)
+
+  def registrationResultWasSkipped(self, series):
+    return self._registrationResultHasStatus(series, RegistrationStatus.SKIPPED_STATUS)
+
+  def registrationResultWasRejected(self, series):
+    return self._registrationResultHasStatus(series, RegistrationStatus.REJECTED_STATUS)
+
+  def registrationResultWasApprovedOrRejected(self, series):
+    return self._registrationResultHasStatus(series, RegistrationStatus.REJECTED_STATUS) or \
+           self._registrationResultHasStatus(series, RegistrationStatus.APPROVED_STATUS)
+
   def loadResults(self, data, directory):
     if len(data["results"]):
       self.customProgressBar.maximum = len(data["results"])

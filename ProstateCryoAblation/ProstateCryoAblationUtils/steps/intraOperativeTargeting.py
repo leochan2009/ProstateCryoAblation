@@ -10,7 +10,7 @@ from SlicerDevelopmentToolboxUtils.helpers import SliceAnnotation
 from SlicerDevelopmentToolboxUtils.decorators import onModuleSelected
 from SlicerDevelopmentToolboxUtils.mixins import ModuleLogicMixin
 from ProstateCryoAblationUtils.steps.plugins.targeting import ProstateCryoAblationTargetingPlugin
-
+import numpy
 
 class ProstateCryoAblationTargetingStepLogic(ProstateCryoAblationLogicBase):
   
@@ -119,24 +119,30 @@ class ProstateCryoAblationTargetingStep(ProstateCryoAblationStep):
       ModuleLogicMixin.setNodeVisibility(self.needleModelNode, checked)
       ModuleLogicMixin.setNodeSliceIntersectionVisibility(self.needleModelNode, checked)  
       needleModelAppend = vtk.vtkAppendPolyData()
-      """
-      holesIndexList = self.targetingPlugin.targetTablePlugin._guidanceComputations.computedHoles
-      holesDepthList = self.targetingPlugin.targetTablePlugin._guidanceComputations.computedDepth
-      for holeIndex in range(len(holesIndexList)):
-        holesIndexList[holeIndex]
-        pathTubeFilter = self.createVTKTubeFilter(p[0], p[2], radius=0.8, numSides=18)
+      currentGuidanceComputation = self.targetingPlugin.targetTablePlugin.targetTableModel.currentGuidanceComputation
+      affectedBallAreaRadius = 12.0 # unit mm
+      offsetFromTip = 2.0 #unit mm
+      for targetIndex in range(currentGuidanceComputation.targetList.GetNumberOfFiducials()):
+        targetPosition = [0.0,0.0,0.0]
+        currentGuidanceComputation.targetList.GetNthFiducialPosition(targetIndex, targetPosition)
+        (start, end, indexX, indexY, depth, inRange) = currentGuidanceComputation.computeNearestPath(targetPosition)
+        pathTubeFilter = ModuleLogicMixin.createVTKTubeFilter(start, end, radius=1.5, numSides=6)
+        affectedBallArea = vtk.vtkSphere()
+        affectedBallArea.SetRadius(affectedBallAreaRadius)
+        needleDirection = (numpy.array(end) - numpy.array(start))/numpy.linalg.norm(numpy.array(end)-numpy.array(start))
+        affectedBallArea.SetCenter(end-needleDirection*offsetFromTip)
         needleModelAppend.AddInputData(pathTubeFilter.GetOutput())
+        needleModelAppend.AddInputData(affectedBallArea)
         needleModelAppend.Update()
         #self.templatePathOrigins.append([row[0], row[1], row[2], 1.0])
         #self.templatePathVectors.append([n[0], n[1], n[2], 1.0])
         #self.templateMaxDepth.append(row[6])
   
-      self.needleModelNode.SetAndObservePolyData(pathModelAppend.GetOutput())
+      self.needleModelNode.SetAndObservePolyData(needleModelAppend.GetOutput())
       self.needleModelNode.GetDisplayNode().SetColor(0.5,0.5,1.0)
-      self.needleModelNode.SetAndObserveTransformNodeID(self.session.data.zFrameRegistrationResult.transform.GetID()) 
+      #self.needleModelNode.SetAndObserveTransformNodeID(self.session.data.zFrameRegistrationResult.transform.GetID())
       """
       needleVector = self.session.steps[1].logic.pathVectors[0]
-      
       for posIndex in range(self.session.movingTargets.GetNumberOfFiducials()):
         pos = [0.0,0.0,0.0]
         self.session.movingTargets.GetNthFiducialPosition(posIndex, pos)
@@ -144,7 +150,7 @@ class ProstateCryoAblationTargetingStep(ProstateCryoAblationStep):
         pathTubeFilter = ModuleLogicMixin.createVTKTubeFilter(pos, pos- 10*depth*needleVector, radius=1.5, numSides=6)
         needleModelAppend.AddInputData(pathTubeFilter.GetOutput())
         needleModelAppend.Update()
-  
+      """
       self.needleModelNode.SetAndObservePolyData(needleModelAppend.GetOutput())
       self.needleModelNode.GetDisplayNode().SetColor(0.5,0.5,1.0)
       #self.needleModelNode.SetAndObserveTransformNodeID(self.session.data.zFrameRegistrationResult.transform.GetID()) 

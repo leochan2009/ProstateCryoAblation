@@ -318,13 +318,14 @@ class ProstateCryoAblationSession(StepBasedSession):
       self.clearData()
 
   def postProcessLoadedSessionData(self):
-    coverProstate = self.data.getMostRecentApprovedCoverProstateRegistration()
-    if coverProstate:
-      if not self.data.initialVolume:
-        self.data.initialVolume = coverProstate.volumes.moving if self.data.usePreopData else coverProstate.volumes.fixed
-      self.data.initialTargets = coverProstate.targets.original
-      if self.data.usePreopData:  # TODO: makes sense?
+    if self.data.usePreopData:
+      coverProstate = self.data.getMostRecentApprovedCoverProstateRegistration()
+      if coverProstate:
+        if not self.data.initialVolume:
+          self.data.initialVolume = coverProstate.volumes.moving if self.data.usePreopData else coverProstate.volumes.fixed
+        self.data.initialTargets = coverProstate.targets.original
         self.data.preopLabel = coverProstate.labels.moving
+    self.steps[0].targetTablePlugin.currentTargets = self.data.initialTargets
     if self.data.zFrameRegistrationResult:
       self._zFrameRegistrationSuccessful = True
     self.data.resumed = not self.data.completed

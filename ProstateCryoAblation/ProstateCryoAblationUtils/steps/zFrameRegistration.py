@@ -23,7 +23,7 @@ class ProstateCryoAblationZFrameRegistrationStepLogic(ProstateCryoAblationLogicB
   ZFRAME_MODEL_PATH = 'zframe-model.vtk'
   ZFRAME_TEMPLATE_VTK_FILE_NAME = 'CryoTemplate.vtk'
   ZFRAME_NEEDLEPATH_VTK_FILE_NAME = 'CryoTemplate-NeedlePath.vtk'
-  ZFRAME_NEEDLEPATH_CONFIG_FILE_NAME = 'ProstateTemplate.csv'
+  ZFRAME_NEEDLEPATH_CONFIG_FILE_NAME = 'CryoAblationTemplate.csv'
   ZFRAME_MODEL_NAME = 'ZFrameModel'
   ZFRAME_TEMPLATE_NAME = 'NeedleGuideTemplate'
   ZFRAME_TEMPLATE_NEEDLE_NAME = 'NeedleGuideTemplate'
