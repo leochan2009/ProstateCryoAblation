@@ -21,6 +21,7 @@ class ProstateCryoAblationTargetingStep(ProstateCryoAblationStep):
 
   NAME = "Targeting"
   NEEDLE_NAME = 'NeedlePath'
+  AFFECTEDAREA_NAME = "AffectedArea"
   LogicClass = ProstateCryoAblationTargetingStepLogic
 
   def __init__(self):
@@ -34,6 +35,7 @@ class ProstateCryoAblationTargetingStep(ProstateCryoAblationStep):
     super(ProstateCryoAblationTargetingStep, self).__init__()
     self.resetAndInitialize()
     self.needleModelNode = None
+    self.affectedAreaModelNode = None
     self.clearOldNodesByName(self.NEEDLE_NAME)
     self.checkAndCreateNeedleModelNode()
   
@@ -46,7 +48,10 @@ class ProstateCryoAblationTargetingStep(ProstateCryoAblationStep):
     if self.needleModelNode is None:
       self.needleModelNode = ModuleLogicMixin.createModelNode(self.NEEDLE_NAME)
       ModuleLogicMixin.createAndObserveDisplayNode(self.needleModelNode, displayNodeClass=slicer.vtkMRMLModelDisplayNode)
-
+    if self.affectedAreaModelNode is None:
+      self.affectedAreaModelNode = ModuleLogicMixin.createModelNode(self.AFFECTEDAREA_NAME)
+      ModuleLogicMixin.createAndObserveDisplayNode(self.affectedAreaModelNode, displayNodeClass=slicer.vtkMRMLModelDisplayNode)
+      self.affectedAreaModelNode.GetDisplayNode().SetOpacity(0.5)
   def resetAndInitialize(self):
     self.session.retryMode = False
 
@@ -115,31 +120,36 @@ class ProstateCryoAblationTargetingStep(ProstateCryoAblationStep):
     
   def onShowAffectiveZoneToggled(self, checked):
     self.showNeedlePath = checked
-    if self.needleModelNode and self.session.approvedCoverTemplate:
+    if self.needleModelNode and self.affectedAreaModelNode and self.session.approvedCoverTemplate:
       ModuleLogicMixin.setNodeVisibility(self.needleModelNode, checked)
-      ModuleLogicMixin.setNodeSliceIntersectionVisibility(self.needleModelNode, checked)  
+      ModuleLogicMixin.setNodeSliceIntersectionVisibility(self.needleModelNode, checked) 
+      ModuleLogicMixin.setNodeVisibility(self.affectedAreaModelNode, checked)
+      ModuleLogicMixin.setNodeSliceIntersectionVisibility(self.affectedAreaModelNode, checked)  
       needleModelAppend = vtk.vtkAppendPolyData()
+      affectedBallAreaAppend = vtk.vtkAppendPolyData()
       currentGuidanceComputation = self.targetingPlugin.targetTablePlugin.targetTableModel.currentGuidanceComputation
-      affectedBallAreaRadius = 12.0 # unit mm
+      affectedBallAreaRadius = 9.0 # unit mm
       offsetFromTip = 2.0 #unit mm
       for targetIndex in range(currentGuidanceComputation.targetList.GetNumberOfFiducials()):
         targetPosition = [0.0,0.0,0.0]
         currentGuidanceComputation.targetList.GetNthFiducialPosition(targetIndex, targetPosition)
         (start, end, indexX, indexY, depth, inRange) = currentGuidanceComputation.computeNearestPath(targetPosition)
-        pathTubeFilter = ModuleLogicMixin.createVTKTubeFilter(start, end, radius=1.5, numSides=6)
-        affectedBallArea = vtk.vtkSphere()
-        affectedBallArea.SetRadius(affectedBallAreaRadius)
         needleDirection = (numpy.array(end) - numpy.array(start))/numpy.linalg.norm(numpy.array(end)-numpy.array(start))
-        affectedBallArea.SetCenter(end-needleDirection*offsetFromTip)
+        pathTubeFilter = ModuleLogicMixin.createVTKTubeFilter(start, start+depth*needleDirection, radius=1.5, numSides=6)
+        affectedBallArea = vtk.vtkSphereSource()
+        affectedBallArea.SetRadius(affectedBallAreaRadius)
+        affectedBallArea.SetPhiResolution(50)
+        affectedBallArea.SetThetaResolution(50)
+        affectedBallArea.SetCenter(start+(depth-offsetFromTip)*needleDirection)
+        affectedBallArea.Update()
         needleModelAppend.AddInputData(pathTubeFilter.GetOutput())
-        needleModelAppend.AddInputData(affectedBallArea)
         needleModelAppend.Update()
+        affectedBallAreaAppend.AddInputData(affectedBallArea.GetOutput())
+        affectedBallAreaAppend.Update()
         #self.templatePathOrigins.append([row[0], row[1], row[2], 1.0])
         #self.templatePathVectors.append([n[0], n[1], n[2], 1.0])
         #self.templateMaxDepth.append(row[6])
   
-      self.needleModelNode.SetAndObservePolyData(needleModelAppend.GetOutput())
-      self.needleModelNode.GetDisplayNode().SetColor(0.5,0.5,1.0)
       #self.needleModelNode.SetAndObserveTransformNodeID(self.session.data.zFrameRegistrationResult.transform.GetID())
       """
       needleVector = self.session.steps[1].logic.pathVectors[0]
@@ -152,7 +162,9 @@ class ProstateCryoAblationTargetingStep(ProstateCryoAblationStep):
         needleModelAppend.Update()
       """
       self.needleModelNode.SetAndObservePolyData(needleModelAppend.GetOutput())
-      self.needleModelNode.GetDisplayNode().SetColor(0.5,0.5,1.0)
+      self.needleModelNode.GetDisplayNode().SetColor(0.0,1.0,0.5)
+      self.affectedAreaModelNode.SetAndObservePolyData(affectedBallAreaAppend.GetOutput())
+      self.affectedAreaModelNode.GetDisplayNode().SetColor(1,0.0,0.0)
       #self.needleModelNode.SetAndObserveTransformNodeID(self.session.data.zFrameRegistrationResult.transform.GetID()) 
     pass  
 
