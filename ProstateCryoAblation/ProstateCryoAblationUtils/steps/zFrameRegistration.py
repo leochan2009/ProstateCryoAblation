@@ -14,7 +14,7 @@ from base import ProstateCryoAblationLogicBase, ProstateCryoAblationStep
 from SlicerDevelopmentToolboxUtils.decorators import onModuleSelected
 from SlicerDevelopmentToolboxUtils.helpers import SliceAnnotation
 from SlicerDevelopmentToolboxUtils.metaclasses import Singleton
-
+from SlicerDevelopmentToolboxUtils.icons import Icons
 
 class ProstateCryoAblationZFrameRegistrationStepLogic(ProstateCryoAblationLogicBase):
 
@@ -266,9 +266,9 @@ class ProstateCryoAblationZFrameRegistrationStep(ProstateCryoAblationStep):
     self.zFrameIcon = self.createIcon('icon-zframe.png')
     self.needleIcon = self.createIcon('icon-needle.png')
     self.templateIcon = self.createIcon('icon-template.png')
-    self.startIcon = self.createIcon('icon-start.png')
-    self.approveIcon = self.createIcon("icon-apply.png")
-    self.retryIcon = self.createIcon("icon-retry.png")
+    self.startIcon = Icons.start
+    self.approveIcon = Icons.apply
+    self.retryIcon = Icons.retry
 
   def setup(self):
     super(ProstateCryoAblationZFrameRegistrationStep, self).setup()

@@ -61,8 +61,7 @@ class SessionData(ModuleLogicMixin):
     self.completed = False
     self.usePreopData = False
 
-    self.clippingModelNode = None
-    self.inputMarkupNode = None
+    self.segmentModelNode = None
 
     self.initialVolume = None
     self.initialLabel = None
@@ -133,7 +132,10 @@ class SessionData(ModuleLogicMixin):
       if "initialVolume" in data.keys():
         self.initialVolume = self._loadOrGetFileData(directory, data["initialVolume"], slicer.util.loadVolume)
 
-      self.loadResults(data, directory)
+      if "tumorSegmentation" in data.keys():
+        self.segmentModelNode = self._loadOrGetFileData(directory, data["tumorSegmentation"], slicer.util.loadVolume)
+
+      self.loadResults(data, directory) ## ?? why need to load twice
     return True
 
   def getMostRecentApprovedCoverProstateRegistration(self):
@@ -242,12 +244,8 @@ class SessionData(ModuleLogicMixin):
     successfullySavedFileNames.append(os.path.join(outputDir, os.path.basename(logFilePath)))
 
     def saveManualSegmentation():
-      if self.clippingModelNode:
-        success, name = self.saveNodeData(self.clippingModelNode, outputDir, FileExtension.VTK, overwrite=True)
-        self.handleSaveNodeDataReturn(success, name, successfullySavedFileNames, failedSaveOfFileNames)
-
-      if self.inputMarkupNode:
-        success, name = self.saveNodeData(self.inputMarkupNode, outputDir, FileExtension.FCSV, overwrite=True)
+      if self.segmentModelNode:
+        success, name = self.saveNodeData(self.segmentModelNode, outputDir, FileExtension.VTK, overwrite=True)
         self.handleSaveNodeDataReturn(success, name, successfullySavedFileNames, failedSaveOfFileNames)
 
     def saveInitialTargets():
@@ -266,8 +264,6 @@ class SessionData(ModuleLogicMixin):
       for result in sorted(self.getResultsAsList(), key=lambda r: r.seriesNumber):
         results.append(result.asDict())
       return results
-
-    saveManualSegmentation()
 
     data = {
       "usedPreopData": self.usePreopData,
@@ -296,6 +292,9 @@ class SessionData(ModuleLogicMixin):
 
     if self.initialVolume:
       data["initialVolume"] = saveInitialVolume()
+
+    if self.segmentModelNode:
+      data["tumorSegmentation"] = saveManualSegmentation()
 
     destinationFile = os.path.join(outputDir, self.DEFAULT_JSON_FILE_NAME)
     with open(destinationFile, 'w') as outfile:
@@ -468,12 +467,30 @@ class Volumes(RegistrationTypeData):
     return dictionary
 
 
-class Labels(AbstractRegistrationData):
+class Labels(RegistrationTypeData):
 
   FILE_EXTENSION = FileExtension.NRRD
 
   def __init__(self):
     super(Labels, self).__init__()
+
+  def initializeMembers(self):
+    self.moving = None
+    self.fixed = None
+
+  def asList(self):
+    return [self.fixed, self.moving]
+
+  def asDict(self):
+    return {'fixed':self.fixed, 'moving':self.moving}
+
+
+class Segments(RegistrationTypeData):
+
+  FILE_EXTENSION = FileExtension.VTK
+
+  def __init__(self):
+    super(Segments, self).__init__()
 
   def initializeMembers(self):
     self.moving = None
@@ -607,10 +624,6 @@ class RegistrationResult(RegistrationResultBase, RegistrationStatus):
   def targetsWereModified(self):
     return len(self.targets.modifiedTargets) > 0
 
-  @property
-  def cmdFileName(self):
-    return str(self.seriesNumber) + "-CMD-PARAMETERS" + self.suffix + FileExtension.TXT
-
   def __init__(self, series):
     RegistrationStatus.__init__(self)
     RegistrationResultBase.__init__(self, series)
@@ -621,9 +634,8 @@ class RegistrationResult(RegistrationResultBase, RegistrationStatus):
     self.transforms = Transforms()
     self.targets = Targets()
     self.labels = Labels()
+    self.segments = Segments()
 
-    self.cmdArguments = ""
-    self.suffix = ""
     self.score = None
 
     self.modifiedTargets = {}
@@ -645,14 +657,20 @@ class RegistrationResult(RegistrationResultBase, RegistrationStatus):
   def setTargets(self, name, targets):
     setattr(self.targets, name, targets)
 
+  def getTargets(self, name):
+    return getattr(self.targets, name)
+
   def getLabel(self, name):
     return getattr(self.labels, name)
 
   def setLabel(self, name, label):
     setattr(self.labels, name, label)
 
-  def getTargets(self, name):
-    return getattr(self.targets, name)
+  def getSegment(self, name):
+    return getattr(self.segments, name)
+
+  def setSegment(self, name, segments):
+    setattr(self.segments, name, segments)
 
   def approve(self, registrationType):
     assert registrationType in self.REGISTRATION_TYPE_NAMES
@@ -667,17 +685,10 @@ class RegistrationResult(RegistrationResultBase, RegistrationStatus):
 
   @logmethod(logging.INFO)
   def save(self, outputDir):
-    def saveCMDParameters():
-      if self.cmdArguments != "":
-        filename = os.path.join(outputDir, self.cmdFileName)
-        f = open(filename, 'w+')
-        f.write(self.cmdArguments)
-        f.close()
-
     def saveData():
       savedSuccessfully = []
       failedToSave = []
-      for data in [self.transforms, self.targets, self.volumes, self.labels]:
+      for data in [self.transforms, self.targets, self.volumes, self.labels, self.segments]:
         successful, failed = data.save(outputDir)
         savedSuccessfully += successful
         failedToSave += failed
@@ -685,7 +696,6 @@ class RegistrationResult(RegistrationResultBase, RegistrationStatus):
       logging.debug("Failed to save: %s \n" % str(failedToSave))
       return savedSuccessfully, failedToSave
 
-    saveCMDParameters()
     return saveData()
 
   def getApprovedTargetsModifiedStatus(self):
@@ -708,7 +718,7 @@ class RegistrationResult(RegistrationResultBase, RegistrationStatus):
       dictionary["transforms"] = self.transforms.getAllFileNames()
       dictionary["volumes"] = self.volumes.getAllFileNames()
       dictionary["labels"] = self.labels.getAllFileNames()
-      dictionary["suffix"] = self.suffix
+      dictionary["segments"] = self.suffix
       if self.approved:
         dictionary["registrationType"] = self.registrationType
     elif self.skipped:
