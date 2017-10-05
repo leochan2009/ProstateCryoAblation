@@ -104,6 +104,7 @@ class ProstateCryoAblationOverviewStep(ProstateCryoAblationStep):
   def setupIntraopSeriesSelector(self):
     self.intraopSeriesSelector = qt.QComboBox()
     self.intraopSeriesSelector.setSizePolicy(qt.QSizePolicy.Expanding, qt.QSizePolicy.Minimum)
+    self.intraopSeriesSelector.setSizeAdjustPolicy(qt.QComboBox.AdjustToContents)
     self._seriesModel = qt.QStandardItemModel()
     self.intraopSeriesSelector.setModel(self._seriesModel)
     self.intraopSeriesSelector.setToolTip(constants.IntraopSeriesSelectorToolTip)

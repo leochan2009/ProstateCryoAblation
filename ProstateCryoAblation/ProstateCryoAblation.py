@@ -32,7 +32,7 @@ class ProstateCryoAblation(ScriptedLoadableModule):
     ScriptedLoadableModule.__init__(self, parent)
     self.parent.title = "ProstateCryoAblation"
     self.parent.categories = ["IGT"]
-    self.parent.dependencies = ["SlicerProstate", "SlicerDevelopmentToolbox"]
+    self.parent.dependencies = ["SlicerDevelopmentToolbox"]
     self.parent.contributors = ["Longquan Chen(SPL)", "Junichi Tokuda (SPL)"]
     self.parent.helpText = """ module to support MRI-guided prostate cryoablation.
       See <a href=\"https://www.slicer.org/wiki/Modules:ProstateNav-Documentation-3.6\"> """

@@ -5,7 +5,7 @@ import EditorLib
 
 from slicer.ScriptedLoadableModule import *
 from SlicerDevelopmentToolboxUtils.mixins import ModuleLogicMixin, ModuleWidgetMixin
-from ProstateCryoAblationUtils.algorithms.zFrameRegistration import OpenSourceZFrameRegistration
+from ProstateCryoAblationUtils.steps.zFrameRegistration import OpenSourceZFrameRegistration
 
 
 class ProstateCryoAblationZFrameRegistration(ScriptedLoadableModule):

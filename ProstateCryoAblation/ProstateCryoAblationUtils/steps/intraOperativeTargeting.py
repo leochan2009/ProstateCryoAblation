@@ -12,7 +12,6 @@ from SlicerDevelopmentToolboxUtils.mixins import ModuleLogicMixin
 from ProstateCryoAblationUtils.steps.plugins.targeting import ProstateCryoAblationTargetingPlugin
 import numpy
 from SlicerDevelopmentToolboxUtils.icons import Icons
-import qSlicerSegmentationsModuleWidgetsPythonQt
 class ProstateCryoAblationTargetingStepLogic(ProstateCryoAblationLogicBase):
   
   def __init__(self):
@@ -32,6 +31,9 @@ class ProstateCryoAblationTargetingStep(ProstateCryoAblationStep):
     self.affectiveZoneIcon = self.createIcon('icon-needle.png')
     self.segmentationEditor = slicer.qMRMLSegmentEditorWidget()
     self.segmentationEditor.setMRMLScene(slicer.mrmlScene)
+    segmentEditorNode = slicer.vtkMRMLSegmentEditorNode()
+    slicer.mrmlScene.AddNode(segmentEditorNode)
+    self.segmentationEditor.setMRMLSegmentEditorNode(segmentEditorNode)
     super(ProstateCryoAblationTargetingStep, self).__init__()
     self.resetAndInitialize()
     self.needleModelNode = None
@@ -70,8 +72,8 @@ class ProstateCryoAblationTargetingStep(ProstateCryoAblationStep):
     self.layout().addWidget(self.targetingPlugin)
 
   def setupSegmentationWidget(self):
-    self.segmentationEditor.masterVolumeNodeSelectorVisible=False
-    self.segmentationEditor.segmentationNodeSelectorVisible = False
+    #self.segmentationEditor.masterVolumeNodeSelectorVisible=False
+    #self.segmentationEditor.segmentationNodeSelectorVisible = False
     self.layout().addWidget(self.segmentationEditor)
 
   def setupNavigationButtons(self):
