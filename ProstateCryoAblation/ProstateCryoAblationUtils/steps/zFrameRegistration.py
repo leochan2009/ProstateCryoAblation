@@ -16,7 +16,6 @@ from SlicerDevelopmentToolboxUtils.metaclasses import Singleton
 from SlicerDevelopmentToolboxUtils.icons import Icons
 from SlicerDevelopmentToolboxUtils.mixins import ModuleLogicMixin
 
-
 class ZFrameRegistrationBase(ModuleLogicMixin):
 
   ZFRAME_TRANSFORM_NAME = "ZFrameTransform"
@@ -35,26 +34,6 @@ class ZFrameRegistrationBase(ModuleLogicMixin):
   def runRegistration(self):
     raise NotImplementedError
 
-
-class LineMarkerRegistration(ZFrameRegistrationBase):
-
-  def __init__(self, inputVolume):
-    super(LineMarkerRegistration, self).__init__(inputVolume)
-    self.markerConfigPath = os.path.join(os.path.dirname(sys.modules[self.__module__].__file__), '..', 'Resources',
-                                         'zframe', 'zframe-config.csv')
-
-  def runRegistration(self):
-    volumesLogic = slicer.modules.volumes.logic()
-    self.outputVolume = volumesLogic.CreateAndAddLabelVolume(slicer.mrmlScene, self.inputVolume,
-                                                             self.inputVolume.GetName() + '-label')
-    seriesNumber = self.inputVolume.GetName().split(":")[0]
-    self.outputTransform = self.createLinearTransformNode(seriesNumber + "-" + self.ZFRAME_TRANSFORM_NAME)
-
-    params = {'inputVolume': self.inputVolume, 'markerConfigFile': self.markerConfigPath,
-              'outputVolume': self.outputVolume, 'markerTransform': self.outputTransform}
-    slicer.cli.run(slicer.modules.linemarkerregistration, None, params, wait_for_completion=True)
-
-
 class OpenSourceZFrameRegistration(ZFrameRegistrationBase):
 
   def __init__(self, inputVolume):
@@ -67,7 +46,8 @@ class OpenSourceZFrameRegistration(ZFrameRegistrationBase):
 
     params = {'inputVolume': self.inputVolume, 'startSlice': start, 'endSlice': end,
               'outputTransform': self.outputTransform}
-    slicer.cli.run(slicer.modules.zframecalibration, None, params, wait_for_completion=True)
+    print params
+    slicer.cli.run(slicer.modules.zframeregistration, None, params, wait_for_completion=True)
 
 class ProstateCryoAblationZFrameRegistrationStepLogic(ProstateCryoAblationLogicBase):
 
@@ -247,8 +227,6 @@ class ProstateCryoAblationZFrameRegistrationStepLogic(ProstateCryoAblationLogicB
     registration = algorithm(inputVolume)
     if isinstance(registration, OpenSourceZFrameRegistration):
       registration.runRegistration(start=kwargs.pop("startSlice"), end=kwargs.pop("endSlice"))
-    elif isinstance(registration, LineMarkerRegistration):
-      registration.runRegistration()
     zFrameRegistrationResult = self.session.data.createZFrameRegistrationResult(self.templateVolume.GetName())
     zFrameRegistrationResult.volume = inputVolume
     zFrameRegistrationResult.transform = registration.getOutputTransformation()
@@ -350,7 +328,7 @@ class ProstateCryoAblationZFrameRegistrationStep(ProstateCryoAblationStep):
     self.runZFrameRegistrationButton = self.createButton("", icon=self.startIcon, iconSize=iconSize, enabled=False,
                                                          toolTip="Run ZFrame Registration")
     self.approveZFrameRegistrationButton = self.createButton("", icon=self.approveIcon, iconSize=iconSize,
-                                                             enabled=self.zFrameRegistrationClass is LineMarkerRegistration,
+                                                             enabled=False,
                                                              toolTip="Confirm registration accuracy", )
     self.retryZFrameRegistrationButton = self.createButton("", icon=self.retryIcon, iconSize=iconSize, enabled=False,
                                                            visible=self.zFrameRegistrationClass is OpenSourceZFrameRegistration,
