@@ -114,6 +114,8 @@ class ProstateCryoAblationCaseManagerPlugin(ProstateCryoAblationPlugin):
   def onOpenCaseButtonClicked(self):
     if not self.checkAndWarnUserIfCaseInProgress():
       return
+    if self.session.isRunning():
+      self.onCloseCaseButtonClicked()
     self.session.directory = qt.QFileDialog.getExistingDirectory(self.parent().window(), "Select Case Directory",
                                                                  self.caseRootDir)
 
