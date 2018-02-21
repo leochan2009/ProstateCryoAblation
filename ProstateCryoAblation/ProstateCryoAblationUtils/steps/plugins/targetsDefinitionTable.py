@@ -147,7 +147,7 @@ class CustomTargetTableModel(qt.QAbstractTableModel, ModuleLogicMixin):
     if self.currentGuidanceComputation:
       self.observer = self.currentGuidanceComputation.addEventObserver(vtk.vtkCommand.ModifiedEvent,
                                                                        self.updateTable)
-    self.reset()
+    #self.reset()
 
   @property
   def coverProstateTargetList(self):
@@ -491,12 +491,12 @@ class TargetsDefinitionTable(ProstateCryoAblationPlugin):
     self.comboBoxList.clear()
   
   def setTargetTableSizeConstraints(self):
-    self.targetTable.horizontalHeader().setResizeMode(qt.QHeaderView.Stretch)
-    self.targetTable.horizontalHeader().setResizeMode(0, qt.QHeaderView.Fixed)
-    self.targetTable.horizontalHeader().setResizeMode(1, qt.QHeaderView.ResizeToContents)
-    self.targetTable.horizontalHeader().setResizeMode(2, qt.QHeaderView.Stretch)
-    self.targetTable.horizontalHeader().setResizeMode(3, qt.QHeaderView.ResizeToContents)
-    self.targetTable.horizontalHeader().setResizeMode(4, qt.QHeaderView.ResizeToContents)
+    self.targetTable.horizontalHeader().setSectionResizeMode(qt.QHeaderView.Stretch)
+    self.targetTable.horizontalHeader().setSectionResizeMode(0, qt.QHeaderView.Fixed)
+    self.targetTable.horizontalHeader().setSectionResizeMode(1, qt.QHeaderView.ResizeToContents)
+    self.targetTable.horizontalHeader().setSectionResizeMode(2, qt.QHeaderView.Stretch)
+    self.targetTable.horizontalHeader().setSectionResizeMode(3, qt.QHeaderView.ResizeToContents)
+    self.targetTable.horizontalHeader().setSectionResizeMode(4, qt.QHeaderView.ResizeToContents)
 
   def setupConnections(self):
     self.targetTable.connect('clicked(QModelIndex)', self.onTargetSelectionChanged)
