@@ -1,6 +1,6 @@
 import logging
 import slicer, vtk
-import os, json
+import os
 import shutil
 from collections import OrderedDict
 
@@ -8,15 +8,13 @@ from SlicerDevelopmentToolboxUtils.constants import FileExtension
 from SlicerDevelopmentToolboxUtils.mixins import ModuleLogicMixin
 from SlicerDevelopmentToolboxUtils.decorators import onExceptionReturnNone, logmethod
 from SlicerDevelopmentToolboxUtils.widgets import CustomStatusProgressbar
-
+from ProstateCryoAblationUtils.constants import ProstateCryoAblationConstants as constants
 from helpers import SeriesTypeManager
 
 
 class SessionData(ModuleLogicMixin):
 
   NewResultCreatedEvent = vtk.vtkCommand.UserEvent + 901
-
-  DEFAULT_JSON_FILE_NAME = "results.json"
 
   _completed = False
   _resumed = False
@@ -28,7 +26,14 @@ class SessionData(ModuleLogicMixin):
   @completed.setter
   def completed(self, value):
     self._completed = value
-    self.completedLogTimeStamp = self.generateLogfileTimeStampDict() if self._completed else None
+    if self.coverProstateVolume:
+      if value:
+        self.coverProstateVolume.SetAttribute(constants.CaseCompleted, "True")
+        logging.info("Case was not Completed")
+      else:  
+        self.coverProstateVolume.SetAttribute(constants.CaseCompleted, "False")
+        logging.info("Case Completed")
+      self.coverProstateVolume.Modified()  
 
   @property
   def resumed(self):
@@ -43,11 +48,10 @@ class SessionData(ModuleLogicMixin):
     self._resumed = value
 
   @staticmethod
-  def wasSessionCompleted(filename):
-    with open(filename) as data_file:
-      data = json.load(data_file)
-      procedureEvents = data["procedureEvents"]
-      return "caseCompleted" in procedureEvents.keys()
+  def wasSessionCompleted():
+    if self.coverProstateVolume.GetAttribute(constants.CaseCompleted)=="True":
+      return True
+    return False
 
   def __init__(self):
     self.resetAndInitializeData()
@@ -55,32 +59,23 @@ class SessionData(ModuleLogicMixin):
   def resetAndInitializeData(self):
     self.seriesTypeManager = SeriesTypeManager()
     self.startTimeStamp = self.getTime()
+    logging.info("Case started")
     self.resumeTimeStamps = []
     self.closedLogTimeStamps = []
     self.savedNeedleTypeForTargets = dict()
     self.savedNeedleTypeForTargets.clear()
-    self.completed = False
     self.segmentModelNode = None
-    self.initialVolume = None
+    self.coverProstateVolume = None
+    self.coverTemplateVolume = None
     self.initialLabel = None
     self.intraOpTargets = None
     self.zFrameRegistrationResult = None
     self.customProgressBar = CustomStatusProgressbar()
+    self.completed = False
     
-
   def createZFrameRegistrationResult(self, series):
     self.zFrameRegistrationResult = ZFrameRegistrationResult(series)
     return self.zFrameRegistrationResult
-
-  def readProcedureEvents(self, procedureEvents):
-    self.startTimeStamp = procedureEvents["caseStarted"]
-    self.completed = "caseCompleted" in procedureEvents.keys()
-    if self.completed:
-      self.completedLogTimeStamp = procedureEvents["caseCompleted"]
-    if "caseClosed" in procedureEvents.keys():
-      self.closedLogTimeStamps = procedureEvents["caseClosed"]
-    if "caseResumed" in procedureEvents.keys():
-      self.resumeTimeStamps = procedureEvents["caseResumed"]
 
   def load(self, filename):
     directory = os.path.dirname(filename)
@@ -89,179 +84,64 @@ class SessionData(ModuleLogicMixin):
     with open(filename) as data_file:
       self.customProgressBar.visible = True
       self.customProgressBar.text = "Reading meta information"
-      logging.debug("reading json file %s" % filename)
-      data = json.load(data_file)
-
-      self.readProcedureEvents(data["procedureEvents"])
-
-      if "intraOpTargets" in data.keys():
-        intraOpTargetsInfo = data["intraOpTargets"]
-        if type(intraOpTargetsInfo) == type(dict()):
-          self.intraOpTargets = self._loadOrGetFileData(directory,
-                                                        intraOpTargetsInfo["targetFile"],
-                                                        slicer.util.loadMarkupsFiducialList)
-          self.savedNeedleTypeForTargets = intraOpTargetsInfo.get("needleType")
-        elif type(intraOpTargetsInfo) == type(unicode()): # ensure backward compatibility to load old data
-          self.intraOpTargets = self._loadOrGetFileData(directory, data["intraOpTargets"],
-                                                        slicer.util.loadMarkupsFiducialList)
-        self.intraOpTargets.SetLocked(True)
-
-      if "zFrameRegistration" in data.keys():
-        zFrameRegistration = data["zFrameRegistration"]
-        volume = self._loadOrGetFileData(directory, zFrameRegistration["volume"], slicer.util.loadVolume)
-        transform = self._loadOrGetFileData(directory, zFrameRegistration["transform"], slicer.util.loadTransform)
-        name = zFrameRegistration["name"] if zFrameRegistration.has_key("name") else volume.GetName()
-        self.zFrameRegistrationResult = ZFrameRegistrationResult(name)
-        self.zFrameRegistrationResult.volume = volume
-        self.zFrameRegistrationResult.transform = transform
-        if zFrameRegistration["seriesType"]:
-          self.seriesTypeManager.assign(self.zFrameRegistrationResult.name, zFrameRegistration["seriesType"])
-
-      if "initialVolume" in data.keys():
-        self.initialVolume = self._loadOrGetFileData(directory, data["initialVolume"], slicer.util.loadVolume)
-
-      if "tumorSegmentation" in data.keys():
-        self.segmentModelNode = self._loadOrGetFileData(directory, data["tumorSegmentation"], slicer.util.loadSegmentation)
-
+      slicer.util.loadScene(filename)
       #self.loadResults(data, directory) ## ?? why need to load twice
     return True
-
-  def _loadOrGetFileData(self, directory, filename, loadFunction):
-    if not filename:
-      return None
-    try:
-      data = self.alreadyLoadedFileNames[filename]
-    except KeyError:
-      _, data = loadFunction(os.path.join(directory, filename), returnNode=True)
-      self.alreadyLoadedFileNames[filename] = data
-    return data
-
-  def generateLogfileTimeStampDict(self):
-    return {
-      "time": self.getTime(),
-      "logfile": os.path.basename(self.getSlicerErrorLogPath())
-    }
 
   def close(self, outputDir):
     if not self.completed:
       self.closedLogTimeStamps.append(self.generateLogfileTimeStampDict())
     return self.save(outputDir)
-
+  
+  def saveIntermediateResults(self, outputDir):
+    saveNodeSuccessful = True 
+    if self.coverProstateVolume:
+      if self.coverProstateVolume and self.coverProstateVolume.GetModifiedSinceRead():
+          self.savePlanningDataToDirectory(self.coverProstateVolume, outputDir)  
+      nodeAttributes=[constants.RelTargetsNodeID,constants.RelSegmentationNodeID]
+      for attribute in nodeAttributes:
+        nodeID = self.coverProstateVolume.GetAttribute(attribute)
+        if nodeID and slicer.mrmlScene.GetNodeByID(nodeID):
+          node = slicer.mrmlScene.GetNodeByID(nodeID)
+          if node and node.GetModifiedSinceRead():
+            saveNodeSuccessful = saveNodeSuccessful*self.savePlanningDataToDirectory(node, outputDir)
+    if self.coverTemplateVolume:      
+      if self.coverTemplateVolume and self.coverTemplateVolume.GetModifiedSinceRead():
+          self.savePlanningDataToDirectory(self.coverTemplateVolume, outputDir)     
+      nodeID = self.coverTemplateVolume.GetAttribute(constants.RelZFrameTransformNodeID)
+      if nodeID and slicer.mrmlScene.GetNodeByID(nodeID):
+        node = slicer.mrmlScene.GetNodeByID(nodeID)
+        if node and node.GetModifiedSinceRead():
+          saveNodeSuccessful = saveNodeSuccessful*self.savePlanningDataToDirectory(node, outputDir)            
+    saveNodeSuccessful = saveNodeSuccessful*slicer.util.saveScene(os.path.join(outputDir, "Results.mrml"))
+    return saveNodeSuccessful
+  
+  def savePlanningDataToDirectory(self, node, outputDir):
+    nodeName = node.GetName()
+    characters = [": ", " ", ":", "/"]
+    for character in characters:
+      nodeName = nodeName.replace(character, "-")
+    storageNodeAvailable = node.GetStorageNode()
+    if not storageNodeAvailable:
+      storageNodeAvailable = node.AddDefaultStorageNode()
+      slicer.app.processEvents()
+    if storageNodeAvailable:
+      storageNode = node.GetStorageNode()
+      extension = storageNode.GetDefaultWriteFileExtension()
+      filename = os.path.join(outputDir, nodeName +'.'+ extension)
+      if slicer.util.saveNode(node, filename):
+        return True
+    return False
+    
   def save(self, outputDir):
     if not os.path.exists(outputDir):
       self.createDirectory(outputDir)
-
     successfullySavedFileNames = []
     failedSaveOfFileNames = []
-
     logFilePath = self.getSlicerErrorLogPath()
     shutil.copy(logFilePath, os.path.join(outputDir, os.path.basename(logFilePath)))
     successfullySavedFileNames.append(os.path.join(outputDir, os.path.basename(logFilePath)))
-
-    def saveManualSegmentation():
-      if self.segmentModelNode:
-        if self.segmentModelNode.GetSegmentation().GetNumberOfSegments()>0:
-          success, name = self.saveNodeData(self.segmentModelNode, outputDir, ".seg.nrrd", overwrite=True)
-          self.handleSaveNodeDataReturn(success, name, successfullySavedFileNames, failedSaveOfFileNames)
-          return name + ".seg.nrrd"
-      return None
-
-    def saveInitialVolume():
-      success, name = self.saveNodeData(self.initialVolume, outputDir, FileExtension.NRRD, overwrite=True)
-      self.handleSaveNodeDataReturn(success, name, successfullySavedFileNames, failedSaveOfFileNames)
-      return name + FileExtension.NRRD
-
-    data = {}
-
-    def saveIntraOpTargets():
-      success, name = self.saveNodeData(self.intraOpTargets, outputDir, FileExtension.FCSV,
-                                        name="IntraOpTargets", overwrite=True)
-      self.handleSaveNodeDataReturn(success, name, successfullySavedFileNames, failedSaveOfFileNames)
-      intraOpTargetsInfo = {"targetFile": name + FileExtension.FCSV}
-      intraOpTargetsInfo["needleType"] = self.savedNeedleTypeForTargets
-      data["intraOpTargets"] = intraOpTargetsInfo
-      return
-
-    def addProcedureEvents():
-      procedureEvents = {
-        "caseStarted": self.startTimeStamp,
-      }
-      if len(self.closedLogTimeStamps):
-        procedureEvents["caseClosed"] = self.closedLogTimeStamps
-      if len(self.resumeTimeStamps):
-        procedureEvents["caseResumed"] = self.resumeTimeStamps
-      if self.completed:
-        procedureEvents["caseCompleted"] = self.completedLogTimeStamp
-      data["procedureEvents"] = procedureEvents
-
-    addProcedureEvents()
-
-    if self.zFrameRegistrationResult:
-      data["zFrameRegistration"] = self.zFrameRegistrationResult.save(outputDir)
-
-    if self.intraOpTargets:
-      saveIntraOpTargets()
-
-    if self.initialVolume:
-      data["initialVolume"] = saveInitialVolume()
-
-    if self.segmentModelNode:
-      data["tumorSegmentation"] = saveManualSegmentation()
-
-    destinationFile = os.path.join(outputDir, self.DEFAULT_JSON_FILE_NAME)
-    with open(destinationFile, 'w') as outfile:
-      logging.debug("Writing registration results to %s" % destinationFile)
-      json.dump(data, outfile, indent=2)
-
-    self.printOutput("The following data was successfully saved:\n", successfullySavedFileNames)
-    self.printOutput("The following data failed to saved:\n", failedSaveOfFileNames)
-    return (len(failedSaveOfFileNames) == 0, failedSaveOfFileNames)
-    
-  def printOutput(self, message, fileNames):
-    if not len(fileNames):
-      return
-    for fileName in fileNames:
-      message += fileName + "\n"
-    logging.debug(message)
-
-class Transforms(object):
-
-  FILE_EXTENSION = FileExtension.H5
-
-  def __init__(self):
-    super(Transforms, self).__init__()
-
-
-class Targets(object):
-
-  FILE_EXTENSION = FileExtension.FCSV
-
-  def __init__(self):
-    super(Targets, self).__init__()
-
-
-class Volumes(object):
-
-  FILE_EXTENSION = FileExtension.NRRD
-
-  def __init__(self):
-    super(Volumes, self).__init__()
-
-
-class Labels(object):
-
-  FILE_EXTENSION = FileExtension.NRRD
-
-  def __init__(self):
-    super(Labels, self).__init__()
-
-
-class Segments(object):
-
-  FILE_EXTENSION = ".seg.nrrd"
-
-  def __init__(self):
-    super(Segments, self).__init__()
+    return self.saveIntermediateResults(outputDir)
 
 class ZFrameRegistrationResult(ModuleLogicMixin):
 
@@ -269,19 +149,3 @@ class ZFrameRegistrationResult(ModuleLogicMixin):
     self.name = series
     self.volume = None
     self.transform = None
-
-  def save(self, outputDir):
-    seriesTypeManager = SeriesTypeManager()
-    dictionary = {
-      "name": self.name,
-      "seriesType": seriesTypeManager.getSeriesType(self.name)
-    }
-    savedSuccessfully = []
-    failedToSave = []
-    success, name = self.saveNodeData(self.transform, outputDir, FileExtension.H5, overwrite=True)
-    dictionary["transform"] = name + FileExtension.H5
-    self.handleSaveNodeDataReturn(success, name, savedSuccessfully, failedToSave)
-    success, name = self.saveNodeData(self.volume, outputDir, FileExtension.NRRD, overwrite=True)
-    dictionary["volume"] = name + FileExtension.NRRD
-    self.handleSaveNodeDataReturn(success, name, savedSuccessfully, failedToSave)
-    return dictionary

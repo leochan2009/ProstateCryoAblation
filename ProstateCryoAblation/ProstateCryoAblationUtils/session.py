@@ -118,6 +118,9 @@ class ProstateCryoAblationSession(StepBasedSession):
     self.segmentationEditor = slicer.qMRMLSegmentEditorWidget()
     self.resetAndInitializeMembers()
     self.resetAndInitializedTargetsAndSegments()
+    slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.StartImportEvent, self.StartCaseImportCallback)
+    slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.EndImportEvent, self.LoadCaseCompletedCallback)
+
   
   def resetAndInitializeMembers(self):
     self.seriesTypeManager.clear()
@@ -148,7 +151,38 @@ class ProstateCryoAblationSession(StepBasedSession):
 
   def initializeColorNodes(self):
     self.segmentedColorName = self.getSetting("Segmentation_Color_Name")
-    
+  
+  @vtk.calldata_type(vtk.VTK_OBJECT)
+  def StartCaseImportCallback(self, caller, eventId, callData):
+    print("loading case")
+    pass
+
+  @vtk.calldata_type(vtk.VTK_OBJECT)
+  def LoadCaseCompletedCallback(self, caller, eventId, callData):
+    print("case loaded")
+    allNodes = slicer.mrmlScene.GetNodes()
+    seriesTypeManager = SeriesTypeManager()
+    zFrameTranformNode = None
+    for nodeIndex in range(allNodes.GetNumberOfItems()):
+      node = allNodes.GetItemAsObject(nodeIndex)
+      if node.IsA("vtkMRMLVolumeNode") and node.GetAttribute(constants.CoverProstateAttributeName):
+        self.sessionData.coverProstateVolume = node
+      if node.IsA("vtkMRMLVolumeNode") and node.GetAttribute(constants.CoverTemplateAttributeName):
+        self.sessionData.coverTemplateVolume = node
+      if node.IsA("vtkMRMLMarkupsFiducialNode") and node.GetAttribute(constants.TargetAttributeName):
+        self.sessionData.intraOpTargets = node
+        self.sessionData.intraOpTargets.SetLocked(True)
+      if node.IsA("vtkMRMLTransformNode") and node.GetAttribute(constants.ZFrameTransformAttributeName):
+        zFrameTranformNode = node
+      if node.IsA("vtkMRMLSegmentationNode") and node.GetAttribute(constants.SegmentationAttributeName):
+        self.sessionData.segmentModelNode = node  
+        
+    if self.sessionData.coverTemplateVolume and zFrameTranformNode:  
+      name = self.sessionData.coverTemplateVolume.GetName()
+      self.sessionData.zFrameRegistrationResult = ZFrameRegistrationResult(name)
+      self.sessionData.zFrameRegistrationResult.volume = self.sessionData.coverTemplateVolume
+      self.sessionData.zFrameRegistrationResult.transform = zFrameTranformNode
+      
   def __del__(self):
     super(ProstateCryoAblationSession, self).__del__()
     self.clearData()
@@ -213,36 +247,30 @@ class ProstateCryoAblationSession(StepBasedSession):
     message = None
     if save:
       self.data.savedNeedleTypeForTargets = self.needleTypeForTargets.copy()
-      success, failedFileNames = self.data.close(self.outputDirectory)
+      success = self.data.close(self.outputDirectory)
       message = "Case data has been saved successfully." if success else \
-        "The following data failed to saved:\n %s" % failedFileNames
+        "Data saving failed!"
     self.invokeEvent(self.CloseCaseEvent, str(message))
     self.clearData()
 
   def save(self):
     self.data.savedNeedleTypeForTargets = self.needleTypeForTargets.copy()
-    success, failedFileNames = self.data.save(self.outputDirectory)
-    return success and not len(failedFileNames), "The following data failed to saved:\n %s" % failedFileNames
+    success = self.data.save(self.outputDirectory)
+    return success 
 
   def complete(self):
     self.data.completed = True
     self.close(save=True)
 
   def load(self):
-    filename = os.path.join(self.outputDirectory, constants.JSON_FILENAME)
-    completed = self.data.wasSessionCompleted(filename)
-    if slicer.util.confirmYesNoDisplay("A %s session has been found for the selected case. Do you want to %s?" \
-                                        % ("completed" if completed else "started",
-                                           "open it" if completed else "continue this session")):
-      slicer.app.layoutManager().blockSignals(True)
-      self._loading = True
-      self.data.load(filename)
-      self.postProcessLoadedSessionData()
-      self._loading = False
-      slicer.app.layoutManager().blockSignals(False)
-      self.invokeEvent(self.LoadingMetadataSuccessfulEvent)
-    else:
-      self.clearData()
+    filename = os.path.join(self.outputDirectory, "Results.mrml")
+    slicer.app.layoutManager().blockSignals(True)
+    self._loading = True
+    self.data.load(filename)
+    self.postProcessLoadedSessionData()
+    self._loading = False
+    slicer.app.layoutManager().blockSignals(False)
+    self.invokeEvent(self.LoadingMetadataSuccessfulEvent)
 
   def postProcessLoadedSessionData(self):
     for step in self.steps:
@@ -591,7 +619,7 @@ class ProstateCryoAblationSession(StepBasedSession):
     return None
 
   def loadCaseData(self):
-    if not os.path.exists(os.path.join(self.outputDirectory, constants.JSON_FILENAME)):
+    if not os.path.exists(os.path.join(self.outputDirectory, "Results.mrml")):
       if len(os.listdir(self.intraopDICOMDirectory)):
         self.startIntraopDICOMReceiver()
     else:
@@ -684,22 +712,32 @@ class ProstateCryoAblationSession(StepBasedSession):
 
   def takeActionForCurrentSeries(self, event = None):
     callData = None
-    if self.seriesTypeManager.isCoverTemplate(self.currentSeries):
-      event = self.InitiateZFrameCalibrationEvent
-    else:
-      if self.zFrameRegistrationSuccessful:
-        if self.seriesTypeManager.isCoverProstate(self.currentSeries):
-          event = self.InitiateTargetingEvent
-        elif self.seriesTypeManager.isGuidance(self.currentSeries):
-          event = self.NeedleGuidanceEvent
-        else:
-          event = self.NeedleGuidanceEvent
+    currentSeriesVolumeNode = self.currentSeriesVolume
+    if currentSeriesVolumeNode:
+      if self.seriesTypeManager.isCoverTemplate(self.currentSeries):
+        event = self.InitiateZFrameCalibrationEvent
+        currentSeriesVolumeNode.SetAttribute(constants.CoverTemplateAttributeName,"True")
+        self.data.coverTemplateVolume = currentSeriesVolumeNode
       else:
-        slicer.util.warningDisplay("ZFrame registration was not performed yet, it is required!")
-    if event:
-      self.invokeEvent(event, callData)
+        if self.zFrameRegistrationSuccessful:
+          if self.seriesTypeManager.isCoverProstate(self.currentSeries):
+            event = self.InitiateTargetingEvent
+            currentSeriesVolumeNode.SetAttribute(constants.CoverProstateAttributeName,"True")
+            self.data.coverProstateVolume = currentSeriesVolumeNode
+          elif self.seriesTypeManager.isGuidance(self.currentSeries):
+            event = self.NeedleGuidanceEvent
+            currentSeriesVolumeNode.SetAttribute(constants.GuidanceAttributeName,"True")
+          else:
+            event = self.NeedleGuidanceEvent
+            currentSeriesVolumeNode.SetAttribute(constants.GuidanceAttributeName,"True")
+        else:
+          slicer.util.warningDisplay("ZFrame registration was not performed yet, it is required!")
+      if event:
+        self.invokeEvent(event, callData)
+      else:
+        raise UnknownSeriesError("Action for currently selected series unknown")
     else:
-      raise UnknownSeriesError("Action for currently selected series unknown")
+        raise UnknownSeriesError("Volume creation failed for selected series")  
 
   @onReturnProcessEvents
   def updateProgressBar(self, **kwargs):

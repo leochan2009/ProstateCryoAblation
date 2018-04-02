@@ -4,6 +4,7 @@ import qt
 import slicer
 import vtk
 from ProstateCryoAblationUtils.steps.base import ProstateCryoAblationLogicBase,ProstateCryoAblationStep
+from ProstateCryoAblationUtils.constants import ProstateCryoAblationConstants as constants
 
 class ProstateCryoAblationTargetingStepLogic(ProstateCryoAblationLogicBase):
   
@@ -50,6 +51,8 @@ class ProstateCryoAblationTargetingStep(ProstateCryoAblationStep):
   def onFinishStepButtonClicked(self):
     #To do, deactivate the drawing buttons when finish button clicked
     self.session.data.segmentModelNode = self.session.segmentationEditor.segmentationNode()
+    self.session.data.coverProstateVolume.SetAttribute(constants.RelSegmentationNodeID, self.session.data.segmentModelNode.GetID())
+    self.session.data.coverProstateVolume.Modified()
     self.session.segmentationEditorNoneButton.click()
     self.session.previousStep.active = True
   
@@ -114,8 +117,11 @@ class ProstateCryoAblationTargetingStep(ProstateCryoAblationStep):
     pass
 
   def onTargetingFinished(self, caller, event):
-    if self.session.targetingPlugin.targetTablePlugin.currentTargets:
-      self.session.targetingPlugin.targetTablePlugin.currentTargets.SetLocked(True)
+    currentTargets = self.session.targetingPlugin.targetTablePlugin.currentTargets
+    if currentTargets:
+      currentTargets.SetLocked(True)
+      self.session.data.coverProstateVolume.SetAttribute(constants.RelTargetsNodeID, currentTargets.GetID())
+      self.session.data.coverProstateVolume.Modified()
     self.finishStepButton.enabled = True
     self.backButton.enabled = True
     pass

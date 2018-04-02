@@ -15,6 +15,7 @@ from SlicerDevelopmentToolboxUtils.helpers import SliceAnnotation
 from SlicerDevelopmentToolboxUtils.metaclasses import Singleton
 from SlicerDevelopmentToolboxUtils.icons import Icons
 from SlicerDevelopmentToolboxUtils.mixins import ModuleLogicMixin
+from ProstateCryoAblationUtils.constants import ProstateCryoAblationConstants as constants
 
 class ZFrameRegistrationBase(ModuleLogicMixin):
 
@@ -554,7 +555,9 @@ class ProstateCryoAblationZFrameRegistrationStep(ProstateCryoAblationStep):
     if self.zFrameRegistrationClass is OpenSourceZFrameRegistration:
       self.annotationLogic.SetAnnotationVisibility(self.coverTemplateROI.GetID())
     self.session.approvedCoverTemplate = self.logic.templateVolume
-
+    self.session.data.coverTemplateVolume.SetAttribute(constants.RelZFrameTransformNodeID,self.session.data.zFrameRegistrationResult.transform.GetID())
+    self.session.data.coverTemplateVolume.Modified()
+    
   def onRetryZFrameRegistrationButtonClicked(self):
     self.removeZFrameInstructionAnnotation()
     self.annotationLogic.SetAnnotationVisibility(self.coverTemplateROI.GetID())

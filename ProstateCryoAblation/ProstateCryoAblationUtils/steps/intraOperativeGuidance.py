@@ -5,6 +5,7 @@ import slicer
 import vtk
 from ..constants import ProstateCryoAblationConstants
 from ProstateCryoAblationUtils.steps.base import ProstateCryoAblationLogicBase,ProstateCryoAblationStep
+from ProstateCryoAblationUtils.constants import ProstateCryoAblationConstants as constants
 
 class ProstateCryoAblationGuidanceStepLogic(ProstateCryoAblationLogicBase): # make it the same as overview for now
 

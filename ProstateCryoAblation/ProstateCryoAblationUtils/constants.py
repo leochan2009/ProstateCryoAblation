@@ -6,8 +6,6 @@ class ProstateCryoAblationConstants(object):
 
   INTRAOP_SAMPLE_DATA_URL = 'https://github.com/SlicerProstate/SliceTracker/releases/download/test-data/Intraop-deid.zip'
 
-  JSON_FILENAME = "results.json"
-
   LAYOUT_RED_SLICE_ONLY = slicer.vtkMRMLLayoutNode.SlicerLayoutOneUpRedSliceView
   LAYOUT_FOUR_UP = slicer.vtkMRMLLayoutNode.SlicerLayoutFourUpView
   LAYOUT_SIDE_BY_SIDE = slicer.vtkMRMLLayoutNode.SlicerLayoutSideBySideView
@@ -15,3 +13,15 @@ class ProstateCryoAblationConstants(object):
 
   ZFrame_INSTRUCTION_STEPS = {1: "Scroll and click into ZFrame center to set ROI center",
                               2: "Click outside of upper right ZFrame corner to set ROI border"}
+  
+  CoverProstateAttributeName = "vtkMRMLScalarVolumeNode.CoverProstate"
+  CoverTemplateAttributeName = "vtkMRMLScalarVolumeNode.CoverTemplate"
+  TargetAttributeName = "vtkMRMLMarkupsFiducialNode.Targets"
+  ZFrameTransformAttributeName = "vtkMRMLTransformNode.ZFrameTransform"
+  GuidanceAttributeName = "vtkMRMLScalarVolumeNode.Guidance"
+  VIBEGuidanceAttributeName = "vtkMRMLScalarVolumeNode.VIBEGuidance"
+  SegmentationAttributeName = "vtkMRMLSegmentationNode.VIBEGuidance"
+  RelSegmentationNodeID = "vtkMRMLScalarVolumeNode.rel_SegmentationID"
+  RelTargetsNodeID = "vtkMRMLScalarVolumeNode.rel_TargetsID"
+  RelZFrameTransformNodeID = "vtkMRMLScalarVolumeNode.rel_ZFrameTransformID"
+  CaseCompleted = "vtkMRMLScalarVolumeNode.CaseCompleted"
